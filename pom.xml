@@ -31,12 +31,17 @@
                             <artifactSet>
                                 <includes>
                                     <include>com.github.broken1arrow:MenuLibrary*</include>
+                                    <include>com.saicone.rtag:*</include>
                                 </includes>
                             </artifactSet>
                             <relocations>
                                 <relocation>
                                     <pattern>org.brokenarrow.menu.library</pattern>
-                                    <shadedPattern>menulibrary.menulib</shadedPattern>
+                                    <shadedPattern>com.dutchjelly.craftenhance.lib.menu</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>com.saicone.rtag</pattern>
+                                    <shadedPattern>com.dutchjelly.craftenhance.lib.rtag</shadedPattern>
                                 </relocation>
                             </relocations>
                         </configuration>
@@ -92,6 +97,18 @@
             <groupId>com.github.broken1arrow</groupId>
             <artifactId>MenuLibrary</artifactId>
             <version>0.81</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.saicone.rtag</groupId>
+            <artifactId>rtag</artifactId>
+            <version>-SNAPSHOT</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.saicone.rtag</groupId>
+            <artifactId>rtag-item</artifactId>
+            <version>-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>
         <dependency>

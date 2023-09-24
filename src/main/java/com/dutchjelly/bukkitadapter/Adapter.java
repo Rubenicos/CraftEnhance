@@ -7,10 +7,8 @@ import com.dutchjelly.craftenhance.gui.util.SkullCreator;
 import com.dutchjelly.craftenhance.messaging.Debug;
 import com.dutchjelly.craftenhance.messaging.Messenger;
 import com.dutchjelly.craftenhance.updatechecking.VersionChecker;
-import org.bukkit.ChatColor;
-import org.bukkit.DyeColor;
-import org.bukkit.Material;
-import org.bukkit.OfflinePlayer;
+import com.google.common.base.Suppliers;
+import org.bukkit.*;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemFlag;
@@ -21,6 +19,7 @@ import org.bukkit.inventory.ShapelessRecipe;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.material.MaterialData;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.Nullable;
 
@@ -29,8 +28,8 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static com.dutchjelly.craftenhance.CraftEnhance.self;
@@ -164,20 +163,17 @@ public class Adapter {
 		return null;
 	}
 
-	private static Optional<Boolean> canUseModeldata = Optional.empty();
-
-	public static boolean canUseModeldata() {
-		if (canUseModeldata.isPresent()) {
-			return canUseModeldata.get();
-		}
+	private static final Supplier<Boolean> canUseModeldata = Suppliers.memoize(() -> {
 		try {
 			ItemMeta.class.getMethod("getCustomModelData");
-			canUseModeldata = Optional.of(true);
 			return true;
 		} catch (final NoSuchMethodException e) {
-			canUseModeldata = Optional.of(false);
 			return false;
 		}
+	});
+
+	public static boolean canUseModeldata() {
+		return canUseModeldata.get();
 	}
 
 	private static Object getNameSpacedKey(final JavaPlugin plugin, final String key) throws ClassNotFoundException, NoSuchMethodException, IllegalAccessException, InvocationTargetException, InstantiationException {
@@ -342,4 +338,12 @@ public class Adapter {
 		return r.getResult().getType().name();
 	}
 
+	public static void removeIfExist(final Plugin plugin, final String key) {
+		try {
+			final NamespacedKey namespacedKey = new NamespacedKey(plugin, key);
+			if (Bukkit.getServer().getRecipe(namespacedKey) != null) {
+				Bukkit.getServer().removeRecipe(namespacedKey);
+			}
+		} catch (Throwable ignored) { }
+	}
 }

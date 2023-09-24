@@ -20,14 +20,14 @@ public class FormatListContents {
 
 	public static <RecipeT extends EnhancedRecipe> List<?> formatRecipes(final RecipeT recipe) {
 		if (recipe == null) return new ArrayList<>();
-		final List<Object> list = new ArrayList<>(Arrays.asList(recipe.getContent()));
+		final List<Object> list = new ArrayList<>(Arrays.asList(recipe.getContentItems()));
 		//todo fix so it auto set right craftingslot System.out.println("recipe.getResultSlot() " + recipe.getResultSlot());
 		final int index;
 		if (list.size() < 6)
 			index = 1;
 		else
 			index = 6;
-		list.add(index, recipe.getResult());
+		list.add(index, recipe.getResult().getItem());
 		return list;
 	}
 

@@ -110,6 +110,16 @@ public class RecipeInjector implements Listener {
         }
     }
 
+    private boolean isEnhancedRecipe(Recipe recipe) {
+        if (recipe instanceof ShapedRecipe) {
+            return ((ShapedRecipe) recipe).getKey().getNamespace().equalsIgnoreCase("craftenhance");
+        } else if (recipe instanceof ShapelessRecipe) {
+            return ((ShapelessRecipe) recipe).getKey().getNamespace().equalsIgnoreCase("craftenhance");
+        } else {
+            return false;
+        }
+    }
+
     @EventHandler(priority = EventPriority.HIGHEST)
     public void handleCrafting(final PrepareItemCraftEvent e) {
         if (e.getRecipe() == null || e.getRecipe().getResult() == null || !plugin.getConfig().getBoolean("enable-recipes"))
@@ -118,7 +128,6 @@ public class RecipeInjector implements Listener {
 
         final CraftingInventory inv = e.getInventory();
         final Recipe serverRecipe = e.getRecipe();
-        Debug.Send("The server wants to inject " + serverRecipe.getResult().toString() + " ceh will check or modify this.");
 
         final List<RecipeGroup> possibleRecipeGroups = loader.findGroupsByResult(serverRecipe.getResult(), RecipeType.WORKBENCH);
         final List<Recipe> disabledServerRecipes = RecipeLoader.getInstance().getDisabledServerRecipes();
@@ -133,38 +142,50 @@ public class RecipeInjector implements Listener {
             if (disableDefaultModeldataCrafts && Adapter.canUseModeldata() && containsModeldata(inv)) {
                 inv.setResult(null);
             }
-            Debug.Send("no matching groups");
+            Debug.Send("No matching groups for the current recipe result");
+            if (isEnhancedRecipe(serverRecipe)) {
+                Debug.Send("But the recipe is from CraftEnhance, so the crafting result will be blocked");
+                inv.setResult(null);
+            }
             return;
         }
+
+        //Debug.Send("The server wants to inject " + serverRecipe.getResult().toString() + " that matches with custom recipe result ceh will check or modify this.");
         for (final RecipeGroup group : possibleRecipeGroups) {
             //Check if any grouped enhanced recipe is a match.
             for (final EnhancedRecipe eRecipe : group.getEnhancedRecipes()) {
                 if (!(eRecipe instanceof WBRecipe)) return;
                 final WBRecipe wbRecipe = (WBRecipe) eRecipe;
-                Debug.Send("Checking if enhanced recipe for " + wbRecipe.getResult().toString() + " matches.");
+                //Debug.Send("Checking if enhanced " + (wbRecipe.isShapeless() ? "shapeless" : "shaped") + " recipe '" + wbRecipe.getKey() + "' matches.");
+                //if (serverRecipe.getResult().equals(eRecipe.getResult().getItem())) {
+                //    Debug.Send("The result matches correctly using ItemStack#equals");
+                //}
+                //if (serverRecipe.getResult().isSimilar(eRecipe.getResult().getItem())) {
+                //    Debug.Send("The result matches correctly using ItemStack#isSimilar");
+                //}
 
-                if (wbRecipe.matches(inv.getMatrix())
+                if (wbRecipe.makatches(inv.getMatrix())
                         && e.getViewers().stream().allMatch(x -> entityCanCraft(x, wbRecipe))
                         && !CraftEnhanceAPI.fireEvent(wbRecipe, e.getViewers().size() > 0 ? (Player) e.getViewers().get(0) : null, inv, group)) {
-                    Debug.Send("Recipe matches, injecting " + wbRecipe.getResult().toString());
+                    Debug.Send("Recipe matches, injecting " + wbRecipe.getKey());
                     if (makeItemsadderCompatible && containsModeldata(inv)) {
                         Bukkit.getScheduler().runTask(CraftEnhance.self(), () -> {
                             if (wbRecipe.matches(inv.getMatrix())) {
-                                final BeforeCraftOutputEvent beforeCraftOutputEvent = new BeforeCraftOutputEvent(eRecipe,  wbRecipe, wbRecipe.getResult().clone());
+                                final BeforeCraftOutputEvent beforeCraftOutputEvent = new BeforeCraftOutputEvent(eRecipe,  wbRecipe, wbRecipe.getResult().getItem().clone());
                                 if (beforeCraftOutputEvent.isCancelled())
                                     return;
                                 inv.setResult(beforeCraftOutputEvent.getResultItem());
                             }
                         });
                     } else {
-                        final BeforeCraftOutputEvent beforeCraftOutputEvent = new BeforeCraftOutputEvent(eRecipe,  wbRecipe, wbRecipe.getResult().clone());
+                        final BeforeCraftOutputEvent beforeCraftOutputEvent = new BeforeCraftOutputEvent(eRecipe,  wbRecipe, wbRecipe.getResult().getItem().clone());
                         if (beforeCraftOutputEvent.isCancelled())
                             continue;
                         inv.setResult(beforeCraftOutputEvent.getResultItem());
                     }
                     return;
                 }
-                Debug.Send("Recipe doesn't match.");
+                Debug.Send("Recipe matrix doesn't match.");
             }
 
             //Check for similar server recipes if no enhanced ones match.
@@ -172,18 +193,21 @@ public class RecipeInjector implements Listener {
                 if (sRecipe instanceof ShapedRecipe) {
                     final ItemStack[] content = ServerRecipeTranslator.translateShapedRecipe((ShapedRecipe) sRecipe);
                     if (WBRecipeComparer.shapeMatches(content, inv.getMatrix(), getTypeMatcher())) {
+                        Debug.Send("Server shaped recipe translated matches");
                         inv.setResult(sRecipe.getResult());
                         return;
                     }
                 } else if (sRecipe instanceof ShapelessRecipe) {
                     final ItemStack[] ingredients = ServerRecipeTranslator.translateShapelessRecipe((ShapelessRecipe) sRecipe);
                     if (WBRecipeComparer.ingredientsMatch(ingredients, inv.getMatrix(), getTypeMatcher())) {
+                        Debug.Send("Server shapeless recipe translated matches");
                         inv.setResult(sRecipe.getResult());
                         return;
                     }
                 }
             }
         }
+        Debug.Send("We found similar custom recipes, but none matched exactly.");
         inv.setResult(null); //We found similar custom recipes, but none matched exactly. So set result to null.
     }
 
@@ -211,16 +235,16 @@ public class RecipeInjector implements Listener {
         for (final EnhancedRecipe eRecipe : group.getEnhancedRecipes()) {
             final FurnaceRecipe fRecipe = (FurnaceRecipe) eRecipe;
 
-            Debug.Send("Checking if enhanced recipe for " + fRecipe.getResult().toString() + " matches.");
+            Debug.Send("Checking if enhanced recipe for " + fRecipe.getResult().getItem().toString() + " matches.");
 
             if (fRecipe.matches(srcMatrix)) {
                 if (entityCanCraft(p, fRecipe)) {
                     //TODO test if result can be changed here
-                    Debug.Send("Found enhanced recipe " + fRecipe.getResult().toString() + " for furnace");
+                    Debug.Send("Found enhanced recipe " + fRecipe.getResult().getItem().toString() + " for furnace");
                     Debug.Send("Matching ingridens are " + source + " .");
-                    return Optional.of(fRecipe.getResult());
+                    return Optional.of(fRecipe.getResult().getItem());
                 } else {
-                    Debug.Send("found this recipe " + fRecipe.getResult().toString() + " match but, player has not this permission " + fRecipe.getPermissions());
+                    Debug.Send("found this recipe " + fRecipe.getResult().getItem().toString() + " match but, player has not this permission " + fRecipe.getPermissions());
                     break;
                 }
             } else {

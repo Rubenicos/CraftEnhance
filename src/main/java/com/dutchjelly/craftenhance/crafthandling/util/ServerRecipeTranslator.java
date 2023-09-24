@@ -34,10 +34,14 @@ public class ServerRecipeTranslator {
         return recipeKey;
     }
 
+    public static void removeIfExist(final String key) {
+        Adapter.removeIfExist(CraftEnhance.getPlugin(CraftEnhance.class), KeyPrefix + key);
+    }
+
     public static ShapedRecipe translateShapedEnhancedRecipe(final ItemStack[] content, final ItemStack result, final String key) {
         if (!Arrays.asList(content).stream().anyMatch(x -> x != null))
             return null;
-        final String recipeKey = GetFreeKey(key);
+        final String recipeKey = key;
         final ShapedRecipe shaped;
         try {
             shaped = Adapter.GetShapedRecipe(
@@ -52,7 +56,7 @@ public class ServerRecipeTranslator {
     }
 
     public static ShapedRecipe translateShapedEnhancedRecipe(final WBRecipe recipe) {
-        return translateShapedEnhancedRecipe(recipe.getContent(), recipe.getResult(), recipe.getKey());
+        return translateShapedEnhancedRecipe(recipe.getContentItems(), recipe.getResult().getItem(), recipe.getKey());
     }
 
 
@@ -60,7 +64,7 @@ public class ServerRecipeTranslator {
         final List<ItemStack> ingredients = Arrays.stream(content).filter(x -> x != null).collect(Collectors.toList());
         if (ingredients.size() == 0)
             return null;
-        final String recipeKey = GetFreeKey(key);
+        final String recipeKey = key;
         final ShapelessRecipe shapeless = Adapter.GetShapelessRecipe(
                 CraftEnhance.getPlugin(CraftEnhance.class), KeyPrefix + recipeKey, result
         );
@@ -69,7 +73,7 @@ public class ServerRecipeTranslator {
     }
 
     public static ShapelessRecipe translateShapelessEnhancedRecipe(final WBRecipe recipe) {
-        return translateShapelessEnhancedRecipe(recipe.getContent(), recipe.getResult(), recipe.getKey());
+        return translateShapelessEnhancedRecipe(recipe.getContentItems(), recipe.getResult().getItem(), recipe.getKey());
     }
 
 

@@ -1,13 +1,16 @@
 package com.dutchjelly.craftenhance.crafthandling.util;
 
 import com.dutchjelly.bukkitadapter.Adapter;
+import com.dutchjelly.craftenhance.messaging.Debug;
 import com.dutchjelly.craftenhance.updatechecking.VersionChecker;
 import com.dutchjelly.craftenhance.util.StripColors;
+import com.saicone.rtag.RtagItem;
 import lombok.Getter;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.Arrays;
+import java.util.*;
 
 import static com.dutchjelly.craftenhance.CraftEnhance.self;
 
@@ -37,9 +40,63 @@ public class ItemMatchers {
     }
 
     private static boolean backwardsCompatibleMatching = false;
+    private static final Map<String, List<Object[]>> NBT_MATCHER_PATHS = new HashMap<>();
 
-    public static void init(final boolean backwardsCompatibleMatching) {
+    public static void init(final boolean backwardsCompatibleMatching, ConfigurationSection nbtMatchers) {
         ItemMatchers.backwardsCompatibleMatching = backwardsCompatibleMatching;
+        NBT_MATCHER_PATHS.clear();
+        if (nbtMatchers == null) {
+            return;
+        }
+        for (String key : nbtMatchers.getKeys(false)) {
+            final List<Object[]> paths = new ArrayList<>();
+            for (String s : nbtMatchers.getStringList(key)) {
+                if (s.trim().isEmpty()) {
+                    continue;
+                }
+                final String[] split = s.replace("[.]", "<dot>").split("\\.");
+                final Object[] path = new Object[split.length];
+                for (int i = 0; i < split.length; i++) {
+                    String pathKey = split[i].replace("<dot>", ".");
+                    if (pathKey.toLowerCase().startsWith("index=") && pathKey.length() > 6) {
+                        pathKey = pathKey.substring(6);
+                        try {
+                            final int index = Integer.parseInt(pathKey);
+                            path[i] = index;
+                            continue;
+                        } catch (NumberFormatException ignored) { }
+                    }
+                    path[i] = pathKey;
+                }
+                paths.add(path);
+            }
+            if (paths.isEmpty()) {
+                Debug.Send("The NBT matcher '" + key + "' is empty");
+                continue;
+            }
+            Debug.Send("The NBT matcher '" + key + "' has been loaded with paths = " + paths);
+            NBT_MATCHER_PATHS.put(key, paths);
+        }
+    }
+
+    public static String getNbtMatcher(final ItemStack item) {
+        if (item == null) {
+            return null;
+        }
+        for (Map.Entry<String, List<Object[]>> entry : NBT_MATCHER_PATHS.entrySet()) {
+            final RtagItem tag = new RtagItem(item);
+            boolean contains = true;
+            for (Object[] path : entry.getValue()) {
+                if (tag.notHasTag(path)) {
+                    contains = false;
+                    break;
+                }
+            }
+            if (contains) {
+                return entry.getKey();
+            }
+        }
+        return null;
     }
 
     public static boolean matchItems(final ItemStack a, final ItemStack b) {
@@ -55,6 +112,8 @@ public class ItemMatchers {
         return am.hasCustomModelData() == bm.hasCustomModelData() && (!am.hasCustomModelData() || am.getCustomModelData() == bm.getCustomModelData());
     }
 
+    // a = CraftEnhance
+    // b = Crafting Table
     public static boolean matchMeta(final ItemStack a, final ItemStack b) {
         if (a == null || b == null) return a == null && b == null;
         final boolean canUseModeldata = Adapter.canUseModeldata();
@@ -75,7 +134,7 @@ public class ItemMatchers {
     }
 
     @SafeVarargs
-    public static <T> IMatcher<T> constructIMatcher(final IMatcher<T>... matchers) {
+    public static <T extends ItemStack> IMatcher<T> constructIMatcher(final IMatcher<T>... matchers) {
         return (a, b) -> Arrays.stream(matchers).allMatch(x -> x.match(a, b));
     }
 
@@ -131,8 +190,22 @@ public class ItemMatchers {
         //neither has item meta, and type has to match
         return a.hasItemMeta() == b.hasItemMeta() && a.getType() == b.getType();
     }
-//    public static boolean matchItemsadderItems(ItemStack a, ItemStack b) {
-//        CustomStack stack = CustomStack.byItemStack(myItemStack);
-//        CustomStack
-//    }
+
+    public static boolean matchNbt(final ItemStack a, final ItemStack b, final String key) {
+        return NBT_MATCHER_PATHS.containsKey(key) && matchNbt(a, b, NBT_MATCHER_PATHS.get(key));
+    }
+
+    public static boolean matchNbt(final ItemStack a, final ItemStack b, final List<Object[]> paths) {
+        final RtagItem tagA = new RtagItem(a);
+        final RtagItem tagB = new RtagItem(b);
+
+        for (Object[] path : paths) {
+            final Object objectA;
+            final Object objectB;
+            if ((objectA = tagA.get(path)) == null || (objectB = tagB.get(path)) == null || !Objects.deepEquals(objectA, objectB)) {
+                return false;
+            }
+        }
+        return true;
+    }
 }

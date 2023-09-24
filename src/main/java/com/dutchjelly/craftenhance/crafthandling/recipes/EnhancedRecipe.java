@@ -18,45 +18,6 @@ import java.util.Map;
 
 public abstract class EnhancedRecipe extends GuiPlacable implements ConfigurationSerializable, ServerLoadable {
 
-    public EnhancedRecipe() { }
-
-    public EnhancedRecipe(final String perm, final ItemStack result, final ItemStack[] content){
-        this.permissions = perm;
-        this.result = result;
-        this.content = content;
-    }
-
-    protected EnhancedRecipe(final Map<String,Object> args){
-        super(args);
-        final FileManager fm = CraftEnhance.self().getFm();
-
-        final List<String> recipeKeys;
-        result = fm.getItem((String)args.get("result"));
-        permissions = (String)args.get("permission");
-        if(args.containsKey("matchtype")){
-            matchType = ItemMatchers.MatchType.valueOf((String)args.get("matchtype"));
-        } else if(args.containsKey("matchmeta")) {
-            matchType = (Boolean) args.get("matchmeta") ?
-                    ItemMatchers.MatchType.MATCH_META :
-                    ItemMatchers.MatchType.MATCH_TYPE;
-        }
-
-        if(args.containsKey("oncraftcommand")) {
-            onCraftCommand = (String)args.get("oncraftcommand");
-        }
-
-        if(args.containsKey("hidden"))
-            hidden = (Boolean) args.get("hidden");
-
-
-        recipeKeys = (List<String>)args.get("recipe");
-        setContent(new ItemStack[recipeKeys.size()]);
-        for(int i = 0; i < content.length; i++){
-            content[i] = fm.getItem(recipeKeys.get(i));
-        }
-        this.deserialize = args;
-    }
-
     @Getter @Setter
     private int id;
 
@@ -64,10 +25,10 @@ public abstract class EnhancedRecipe extends GuiPlacable implements Configuratio
     private String key;
 
     @Getter @Setter
-    private ItemStack result;
+    private RecipeItem result;
 
     @Getter @Setter
-    private ItemStack[] content;
+    private RecipeItem[] content;
 
     @Getter @Setter
     private ItemMatchers.MatchType matchType = ItemMatchers.MatchType.MATCH_META;
@@ -88,6 +49,61 @@ public abstract class EnhancedRecipe extends GuiPlacable implements Configuratio
     private Map<String,Object> deserialize;
     @Getter
     private Map<String,Object> serialize;
+
+    public EnhancedRecipe() {
+        this(null, new RecipeItem(null), new RecipeItem[0]);
+    }
+
+    public EnhancedRecipe(final String perm, final ItemStack result, final ItemStack[] content) {
+        this(perm, new RecipeItem(result), RecipeItem.of(content));
+    }
+
+    public EnhancedRecipe(final String perm, final RecipeItem result, final RecipeItem[] content) {
+        this.permissions = perm;
+        this.result = result;
+        this.content = content;
+    }
+
+    protected EnhancedRecipe(final Map<String,Object> args) {
+        super(args);
+        final FileManager fm = CraftEnhance.self().getFm();
+
+        final List<String> recipeKeys;
+        result = new RecipeItem(fm.getItem((String)args.get("result")));
+        permissions = (String)args.get("permission");
+        if (args.containsKey("matchtype")) {
+            matchType = ItemMatchers.MatchType.valueOf((String)args.get("matchtype"));
+        } else if (args.containsKey("matchmeta")) {
+            matchType = (Boolean) args.get("matchmeta") ?
+                    ItemMatchers.MatchType.MATCH_META :
+                    ItemMatchers.MatchType.MATCH_TYPE;
+        }
+
+        if (args.containsKey("oncraftcommand")) {
+            onCraftCommand = (String)args.get("oncraftcommand");
+        }
+
+        if (args.containsKey("hidden")) {
+            hidden = (Boolean) args.get("hidden");
+        }
+
+
+        recipeKeys = (List<String>)args.get("recipe");
+        setContent(new RecipeItem[recipeKeys.size()]);
+        for (int i = 0; i < content.length; i++) {
+            content[i] = new RecipeItem(fm.getItem(recipeKeys.get(i)));
+        }
+        this.deserialize = args;
+    }
+
+    public ItemStack[] getContentItems() {
+        final ItemStack[] items = new ItemStack[content.length];
+        for (int i = 0; i < content.length; i++) {
+            items[i] = content[i].getItem();
+        }
+        return items;
+    }
+
     @Override
     public Map<String, Object> serialize() {
         final FileManager fm = CraftEnhance.getPlugin(CraftEnhance.class).getFm();
@@ -97,21 +113,22 @@ public abstract class EnhancedRecipe extends GuiPlacable implements Configuratio
             put("matchtype", matchType.name());
             put("hidden", hidden);
             put("oncraftcommand", onCraftCommand);
-            put("result", fm.getItemKey(result));
-            put("recipe", Arrays.stream(content).map(x -> fm.getItemKey(x)).toArray(String[]::new));
+            put("result", fm.getItemKey(result.getItem()));
+            put("recipe", Arrays.stream(content).map(x -> fm.getItemKey(x.getItem())).toArray(String[]::new));
             if (serialize != null && !serialize.isEmpty())
                 putAll(serialize);
         }};
     }
 
-    public String validate(){
+    public String validate() {
 
-        if(result == null)
+        if (result.getItem() == null) {
             return "recipe cannot have null result";
-        if(!Adapter.canUseModeldata() && matchType == ItemMatchers.MatchType.MATCH_MODELDATA_AND_TYPE)
+        } else if (!Adapter.canUseModeldata() && matchType == ItemMatchers.MatchType.MATCH_MODELDATA_AND_TYPE) {
             return "recipe is using modeldata match while the server doesn't support it";
-        if(content.length == 0 || !Arrays.stream(content).anyMatch(x -> x != null))
+        } if (content.length == 0 || !Arrays.stream(content).anyMatch(x -> x != null)) {
             return "recipe content cannot be empty";
+        }
         return null;
     }
 
@@ -119,26 +136,19 @@ public abstract class EnhancedRecipe extends GuiPlacable implements Configuratio
     public String toString() {
         return "EnhancedRecipe{" +
                 "key='" + key + '\'' +
-                ", result=" + (this.result == null ? "null" : result)  +
+                ", result=" + (this.result.getItem() == null ? "null" : result.getItem())  +
                 '}';
     }
-/*
-    @Override
-    public String toString(){
-        String s = "";
-        s += "key = " + key + "\n";
-        s += "result = " + (this.result == null ? "null" : result) + "\n";
-        return s;
-    }*/
 
     @Override
-    public ItemStack getDisplayItem(){
-        return getResult();
+    public ItemStack getDisplayItem() {
+        return getResult().getItem();
     }
 
-    public void save(){
-        if(validate() == null)
+    public void save() {
+        if (validate() == null) {
             CraftEnhance.self().getFm().saveRecipe(this);
+        }
     }
 
     public void load(){
